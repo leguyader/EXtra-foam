@@ -17,6 +17,8 @@ services:
   - xvfb
 
 jobs:
+  allow_failures:
+    - stage: singularity build push
   include:
     - stage: basic
       env: PYTHON_VERSION="3.7.5" COMPILER="gcc" GCCv="7"
