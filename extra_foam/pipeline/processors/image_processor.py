@@ -184,8 +184,13 @@ class ImageProcessor(_BaseProcessor):
         self._update_gain_offset()
         image_data.gain_mean = self._gain_mean
         image_data.offset_mean = self._offset_mean
-        self._correct_image_data(sliced_assembled, pulse_slicer)
 
+        if config["DETECTOR"] == 'DSSC':
+            self._correct_image_data(assembled, slice(None, None), intradark=True)
+            sliced_assembled = assembled[pulse_slicer]
+        else:
+            self._correct_image_data(sliced_assembled, pulse_slicer)
+        
         # Note: This will be needed by the pump_probe_processor to calculate
         #       the mean of assembled images. Also, the on/off indices are
         #       based on the sliced data.
@@ -347,7 +352,7 @@ class ImageProcessor(_BaseProcessor):
                     self._offset = None
                     self._offset_mean = None
 
-    def _correct_image_data(self, sliced_assembled, slicer):
+    def _correct_image_data(self, sliced_assembled, slicer, intradark=False):
         gain = self._gain if self._correct_gain else None
 
         if self._correct_offset:
@@ -355,7 +360,7 @@ class ImageProcessor(_BaseProcessor):
         else:
             offset = None
 
-        if sliced_assembled.ndim == 3:
+        if sliced_assembled.ndim == 3 and not(intradark):
             if gain is not None:
                 gain = gain[slicer]
             if offset is not None:
@@ -371,7 +376,8 @@ class ImageProcessor(_BaseProcessor):
                 f"Assembled shape {sliced_assembled.shape} and "
                 f"offset shape {offset.shape} are different!")
 
-        correct_image_data(sliced_assembled, gain=gain, offset=offset)
+        correct_image_data(sliced_assembled, gain=gain, offset=offset,
+                intradark=intradark)
 
     def _update_pois(self, image_data, assembled):
         if assembled.ndim == 2 or image_data.poi_indices is None:
