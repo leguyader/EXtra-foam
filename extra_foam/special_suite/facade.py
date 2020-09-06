@@ -18,6 +18,7 @@ from extra_foam.gui.gui_helpers import create_icon_button
 
 from . import __version__
 from .cam_view_w import CamViewWindow
+from .fth_w import FTHWindow
 from .gotthard_pump_probe_w import GotthardPumpProbeWindow
 from .gotthard_w import GotthardWindow
 from .module_scan_w import ModuleScanWindow
@@ -139,6 +140,7 @@ class ScsSpecialSuiteFacade(_SpecialSuiteFacadeBase):
         self.addSpecial(TrXasWindow)
         self.addSpecial(GotthardWindow)
         self.addSpecial(GotthardPumpProbeWindow)
+        self.addSpecial(FTHWindow)
         self.addCommonSpecials()
 
         self.initUI()
