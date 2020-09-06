@@ -19,7 +19,7 @@ from extra_foam.gui.plot_widgets import (
     ImageViewF, TimedImageViewF, TimedPlotWidgetF
 )
 
-from .special_analysis_base import (
+from extra_foam.special_suite.special_analysis_base import (
     create_special, QThreadFoamClient, _BaseAnalysisCtrlWidgetS,
     _SpecialAnalysisBase
 )
@@ -40,14 +40,21 @@ class TrXasCtrlWidget(_BaseAnalysisCtrlWidgetS):
         super().__init__(*args, **kwargs)
 
         self.device_id1_le = SmartStringLineEdit(
-            "SCS_ILH_LAS/MOTOR/LT3")
-        self.ppt1_le = SmartStringLineEdit("AActualPosition")
-        self.label1_le = SmartStringLineEdit("Delay (arb. u.)")
+        #    "SCS_ILH_LAS/MOTOR/LT3")
+            "SA3_XTD10_MONO/MDL/PHOTON_ENERGY")
+        self.ppt1_le = SmartStringLineEdit(
+        #    "AActualPosition")
+            "actualEnergy")
+        self.label1_le = SmartStringLineEdit(
+        #    "Delay (arb. u.)")
+            "Energy (eV)")
 
         self.device_id2_le = SmartStringLineEdit(
             "SA3_XTD10_MONO/MDL/PHOTON_ENERGY")
-        self.ppt2_le = SmartStringLineEdit("actualEnergy")
-        self.label2_le = SmartStringLineEdit("Energy (eV)")
+        self.ppt2_le = SmartStringLineEdit(
+            "actualEnergy")
+        self.label2_le = SmartStringLineEdit(
+            "Energy (eV)")
 
         self.bin_range1_le = SmartBoundaryLineEdit(_DEFAULT_BIN_RANGE)
         self.n_bins1_le = SmartLineEdit(str(_DEFAULT_N_BINS))
@@ -56,6 +63,10 @@ class TrXasCtrlWidget(_BaseAnalysisCtrlWidgetS):
         self.bin_range2_le = SmartBoundaryLineEdit(_DEFAULT_BIN_RANGE)
         self.n_bins2_le = SmartLineEdit(str(_DEFAULT_N_BINS))
         self.n_bins2_le.setValidator(QIntValidator(1, _MAX_N_BINS))
+
+        self.time_bin_width_le = SmartLineEdit(str(_DEFAULT_N_BINS))
+        self.time_bin_width_le.setValidator(QIntValidator(1, _MAX_N_BINS))
+
 
         self.swap_btn = QPushButton("Swap devices")
 
@@ -86,6 +97,8 @@ class TrXasCtrlWidget(_BaseAnalysisCtrlWidgetS):
         layout.addRow("# of bins 2: ", self.n_bins2_le)
         layout.addRow("", self.swap_btn)
 
+        layout.addRow("trainId bin width: ", self.time_bin_width_le)
+
     def initConnections(self):
         """Override."""
         self.swap_btn.clicked.connect(self._swapDataSources)
@@ -114,11 +127,13 @@ class TrXasRoiImageView(ImageViewF):
         super().__init__(**kwargs)
 
         self._index = idx
-        self.setTitle(f"ROI{idx}")
+        #self.setTitle(f"ROI{idx}")
+        self.setTitle(f"ROIs")
 
     def updateF(self, data):
         """Override."""
-        self.setImage(data[f"roi{self._index}"])
+        #self.setImage(data[f"roi{self._index}"])
+        self.setImage(data['rois'])
 
 
 class TrXasSpectraPlot(TimedPlotWidgetF):
@@ -138,12 +153,15 @@ class TrXasSpectraPlot(TimedPlotWidgetF):
         self.addLegend(offset=(-40, 20))
 
         if diff:
-            self._a21 = self.plotCurve(name="ROI2/ROI1", pen=FColor.mkPen("g"))
+            self._t21 = self.plotCurve(name="ROI2/ROI1", pen=FColor.mkPen("g"))
+            self._snr21 = self.plotScatter(name="SNR ROI2/ROI1", y2=True, pen=FColor.mkPen("g"))
         else:
             # same color as ROI1
-            self._a13 = self.plotCurve(name="ROI1/ROI3", pen=FColor.mkPen("b"))
+            self._t13 = self.plotCurve(name="ROI1/ROI3", pen=FColor.mkPen("b"))
+            self._snr13 = self.plotScatter(name="SNR ROI1/ROI3", y2=True, pen=FColor.mkPen("b"))
             # same color as ROI2
-            self._a23 = self.plotCurve(name="ROI2/ROI3", pen=FColor.mkPen("r"))
+            self._t23 = self.plotCurve(name="ROI2/ROI3", pen=FColor.mkPen("r"))
+            self._snr23 = self.plotScatter(name="SNR ROI2/ROI3", y2=True, pen=FColor.mkPen("r"))
 
         self._count = self.plotBar(
             name="Count", y2=True, brush=FColor.mkBrush('i', alpha=70))
@@ -157,15 +175,54 @@ class TrXasSpectraPlot(TimedPlotWidgetF):
             return
 
         if self._diff:
-            self._a21.setData(centers1, data["a21_stats"])
+            self._t21.setData(centers1, data['log_wmu21'])
+            self._snr21.setData(centers1, data['snr21'])
         else:
-            self._a13.setData(centers1, data["a13_stats"])
-            self._a23.setData(centers1, data["a23_stats"])
+            self._t13.setData(centers1, data['log_wmu13'])
+            self._snr13.setData(centers1, data['snr13'])
+            self._t23.setData(centers1, data['log_wmu23'])
+            self._snr23.setData(centers1, data['snr23'])
         self._count.setData(centers1, data["counts1"])
 
     def onXLabelChanged(self, label):
         self.setLabel('bottom', label)
 
+class DiagnosticPlot(TimedPlotWidgetF):
+    """DiagnosticPlot class.
+
+    Visualize 1D binning diagnostic data as function of time.
+    """
+    def __init__(self, *, parent=None):
+        """Initialization."""
+        super().__init__(parent=parent)
+
+        self.setTitle("Diagnostic")
+        self.setLabel('left', "SNR")
+        self.setLabel('right', "Saturation (%)")
+        self.addLegend(offset=(-40, 20))
+
+        self._time_snr13 = self.plotScatter(name="SNR ROI1/ROI3", pen=FColor.mkPen("b"))
+        self._time_snr23 = self.plotScatter(name="SNR ROI2/ROI3", pen=FColor.mkPen("r"))
+        self._time_snr21 = self.plotScatter(name="SNR ROI2/ROI1", y2=True, pen=FColor.mkPen("g"))
+
+        self._time_saturation = self.plotScatter(
+            name="Saturation", y2=True, brush=FColor.mkBrush('i', alpha=70))
+
+    def refresh(self):
+        """Override."""
+        data = self._data
+
+        centers1 = data["time_centers1"]
+        if centers1 is None:
+            return
+
+        self._time_snr13.setData(centers1, data['time_snr13'])
+        self._time_snr23.setData(centers1, data['time_snr23'])
+        self._time_snr21.setData(centers1, data['time_snr21'])
+        self._time_saturation.setData(centers1, data['time_saturation'])
+
+    def onXLabelChanged(self, label):
+        self.setLabel('bottom', label)
 
 class TrXasHeatmap(TimedImageViewF):
     """TrXasHeatmap class.
@@ -218,11 +275,12 @@ class TrXasWindow(_SpecialAnalysisBase):
         super().__init__(topic, with_dark=False)
 
         self._roi1_image = TrXasRoiImageView(1, parent=self)
-        self._roi2_image = TrXasRoiImageView(2, parent=self)
-        self._roi3_image = TrXasRoiImageView(3, parent=self)
+        #self._roi2_image = TrXasRoiImageView(2, parent=self)
+        #self._roi3_image = TrXasRoiImageView(3, parent=self)
 
-        self._a13_a23 = TrXasSpectraPlot(parent=self)
-        self._a21 = TrXasSpectraPlot(True, parent=self)
+        self._t13_t23 = TrXasSpectraPlot(parent=self)
+        self._t21 = TrXasSpectraPlot(True, parent=self)
+        self._diagnostic = DiagnosticPlot(parent=self)
         self._a21_heatmap = TrXasHeatmap(parent=self)
 
         self.initUI()
@@ -231,20 +289,26 @@ class TrXasWindow(_SpecialAnalysisBase):
 
     def initUI(self):
         """Override."""
-        middle_panel = QSplitter(Qt.Vertical)
-        middle_panel.addWidget(self._roi1_image)
-        middle_panel.addWidget(self._roi2_image)
-        middle_panel.addWidget(self._roi3_image)
 
-        right_panel = QSplitter(Qt.Vertical)
-        right_panel.addWidget(self._a13_a23)
-        right_panel.addWidget(self._a21)
-        right_panel.addWidget(self._a21_heatmap)
-        right_panel.setSizes([self._TOTAL_H / 3.0] * 3)
+        H,W = self._TOTAL_H,self._TOTAL_W  
+        panel1 = QSplitter(Qt.Horizontal)
+        panel1.addWidget(self._t13_t23)
+        panel1.addWidget(self._t21)
+        panel1.setSizes([W/2.0, W/2.0])
 
+        panel2 = QSplitter(Qt.Horizontal)
+        panel2.addWidget(self._diagnostic)
+        panel2.addWidget(self._a21_heatmap)
+        panel2.setSizes([W/2.0, W/2.0])
+
+        main_panel = QSplitter(Qt.Vertical)
+        main_panel.addWidget(self._roi1_image)
+        main_panel.addWidget(panel1)
+        main_panel.addWidget(panel2)
+        main_panel.setSizes([1*H/7.0, 3*H/7.0, 3*H/7.0])
+        
         cw = self.centralWidget()
-        cw.addWidget(middle_panel)
-        cw.addWidget(right_panel)
+        cw.addWidget(main_panel)
 
         self.resize(self._TOTAL_W, self._TOTAL_H)
 
@@ -283,9 +347,9 @@ class TrXasWindow(_SpecialAnalysisBase):
         self._ctrl_widget_st.bin_range2_le.returnPressed.emit()
 
         self._ctrl_widget_st.label1_le.value_changed_sgn.connect(
-            self._a21.onXLabelChanged)
+            self._t21.onXLabelChanged)
         self._ctrl_widget_st.label1_le.value_changed_sgn.connect(
-            self._a13_a23.onXLabelChanged)
+            self._t13_t23.onXLabelChanged)
         self._ctrl_widget_st.label1_le.value_changed_sgn.connect(
             self._a21_heatmap.onYLabelChanged)
         self._ctrl_widget_st.label2_le.value_changed_sgn.connect(
@@ -293,3 +357,8 @@ class TrXasWindow(_SpecialAnalysisBase):
 
         self._ctrl_widget_st.label1_le.returnPressed.emit()
         self._ctrl_widget_st.label2_le.returnPressed.emit()
+
+        self._ctrl_widget_st.time_bin_width_le.value_changed_sgn.connect(
+            self._worker_st.onNTimeBinWidthChanged)
+        self._ctrl_widget_st.time_bin_width_le.returnPressed.emit()
+ 

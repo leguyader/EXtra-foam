@@ -39,7 +39,9 @@ from .datamodel import (
 )
 
 from .spectrum import (
-    compute_spectrum_1d
+    compute_spectrum_1d,
+    compute_spectrum_1d_weighted,
+    weighted_incremental_std
 )
 
 from .computer_vision import (
