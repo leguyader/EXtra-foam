@@ -267,6 +267,11 @@ class ImageRoiPulse(_RoiProcessorBase):
         elif self._fom_combo == RoiCombo.ROI2:
             processed.pulse.roi.fom = self._compute_fom(
                 roi2, self._fom_type, mask2, threshold_mask)
+        elif self._fom_combo == RoiCombo.ROI3:
+            roi3 = roi.geom3.rect(assembled)
+            mask3 = None if image_mask is None else roi.geom3.rect(image_mask)
+            processed.pulse.roi.fom = self._compute_fom(
+                roi3, self._fom_type, mask3, threshold_mask)
         else:
             fom1 = self._compute_fom(
                 roi1, self._fom_type, mask1, threshold_mask)
@@ -510,6 +515,8 @@ class ImageRoiTrain(_RoiProcessorBase):
             fom = fom1
         elif self._fom_combo == RoiCombo.ROI2:
             fom = fom2
+        elif self._fom_combo == RoiCombo.ROI3:
+            fom = self._compute_fom(self._roi3, self._fom_type)
         else:
             if fom1 is None or fom2 is None:
                 return
@@ -579,6 +586,9 @@ class ImageRoiTrain(_RoiProcessorBase):
         elif self._fom_combo == RoiCombo.ROI2:
             fom_on = fom2_on
             fom_off = fom2_off
+        elif self._fom_combo == RoiCombo.ROI3:
+            fom_on = self._compute_fom(self._roi3_on, self._fom_type)
+            fom_off = self._compute_fom(self._roi3_off, self._fom_type)
         else:
             if fom1_on is None or fom2_on is None:
                 return
