@@ -548,6 +548,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._r2.reset()
         self._r3.reset()
         self._tid.reset()
+        self._saturation.reset()
 
         self._edges1 = None
         self._counts1 = None
