@@ -17,7 +17,7 @@ from scipy import stats
 from extra_foam.algorithms import (compute_spectrum_1d, nansum,
     compute_spectrum_1d_weighted, weighted_incremental_std)
 
-from extra_foam.algorithms import SimpleSequence
+from extra_foam.algorithms import SimpleSequence, OneWayAccuPairSequence
 from extra_foam.pipeline.processors.binning import _BinMixin
 from extra_foam.pipeline.exceptions import ProcessingError
 
@@ -98,6 +98,9 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._tid = SimpleSequence(max_len=self._MAX_POINTS)
         self._saturation = SimpleSequence(max_len=self._MAX_POINTS)
 
+        self._time_saturation = OneWayAccuPairSequence(resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
+        self._time_r3 = OneWayAccuPairSequence(resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
+
         self._edges1 = None
         self._counts1 = None
         self._t13_stats = None
@@ -109,7 +112,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._time_t13_stats = None
         self._time_t23_stats = None
         self._time_t21_stats = None
-        self._time_saturation_stats = None
 
         self._edges2 = None
         self._a21_heat = None
@@ -177,6 +179,12 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         if w != self._time_bin_width1:
             self._time_bin_width1 = w
             self._time_bin1d = True
+            self._time_r3 = OneWayAccuPairSequence.from_array(
+                    self._tid.data(), self._r3.data(), resolution=w,
+                    max_len=self._MAX_POINTS)
+            self._time_saturation = OneWayAccuPairSequence.from_array(
+                    self._tid.data(), self._saturation.data(), resolution=w,
+                    max_len=self._MAX_POINTS)
 
     def sources(self):
         """Override."""
@@ -277,8 +285,9 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             "time_snr13": self._time_t13_stats['wmu']/self._time_t13_stats['ws'],
             "time_snr23": self._time_t23_stats['wmu']/self._time_t23_stats['ws'],
             "time_snr21": self._time_t21_stats['wmu']/self._time_t21_stats['ws'],
-            "time_saturation": self._time_saturation_stats,
-            "time_centers1": self.edges2centers(self._time_edges1)[0]
+            "time_saturation": self._time_saturation.data(),
+            "time_centers1": self.edges2centers(self._time_edges1)[0],
+            "time_r3": self._time_r3.data()
         }
         
         return ret
@@ -330,6 +339,8 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._t21.append(t21)
         self._tid.append(tid)
         self._saturation.append(sat)
+        self._time_saturation.append((tid,sat))
+        self._time_r3.append((tid,r3))
 
         # fetch slow data
         s1 = self.getPropertyData(raw, self._device_id1, self._ppt1)
@@ -373,15 +384,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._counts1 = self._t21_stats['counts']
  
     def _new_1d_time_binning(self):
-        self._time_saturation_stats, _, _ = compute_spectrum_1d(
-            self._tid.data(),
-            self._saturation.data(),
-            n_bins=self._time_n_bins1,
-            bin_range=self._time_actual_range1,
-            edge2center=False,
-            nan_to_num=True
-        )
-
         self._time_t13_stats = compute_spectrum_1d_weighted(
             self._tid.data(),
             self._t13.data(),
@@ -466,8 +468,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         if 0 <= iloc_x < self._time_n_bins1:
             self._time_counts1[iloc_x] += 1
             count = self._time_counts1[iloc_x]
-            self._time_saturation_stats[iloc_x] += (sat
-                - self._time_saturation_stats[iloc_x]) / count
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
                 t13, r3, self._time_t13_stats['sum_w'][iloc_x],
@@ -559,7 +559,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._a21_heat = None
         self._a21_heat_count = None
 
-        self._time_saturation_stats = None
         self._time_t13_stats = None
         self._time_t23_stats = None
         self._time_t21_stats = None
@@ -569,3 +568,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._bin1d = True
         self._bin2d = True
         self._time_bin1d = True
+
+        self._time_r3.reset()
+        self._time_saturation.reset()

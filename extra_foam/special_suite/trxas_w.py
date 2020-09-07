@@ -198,15 +198,11 @@ class DiagnosticPlot(TimedPlotWidgetF):
 
         self.setTitle("Diagnostic")
         self.setLabel('left', "SNR")
-        self.setLabel('right', "Saturation (%)")
         self.addLegend(offset=(-40, 20))
 
         self._time_snr13 = self.plotScatter(name="SNR ROI1/ROI3", pen=FColor.mkPen("b"))
         self._time_snr23 = self.plotScatter(name="SNR ROI2/ROI3", pen=FColor.mkPen("r"))
-        self._time_snr21 = self.plotScatter(name="SNR ROI2/ROI1", y2=True, pen=FColor.mkPen("g"))
-
-        self._time_saturation = self.plotScatter(
-            name="Saturation", y2=True, brush=FColor.mkBrush('i', alpha=70))
+        self._time_snr21 = self.plotScatter(name="SNR ROI2/ROI1", pen=FColor.mkPen("g"))
 
     def refresh(self):
         """Override."""
@@ -219,7 +215,37 @@ class DiagnosticPlot(TimedPlotWidgetF):
         self._time_snr13.setData(centers1, data['time_snr13'])
         self._time_snr23.setData(centers1, data['time_snr23'])
         self._time_snr21.setData(centers1, data['time_snr21'])
-        self._time_saturation.setData(centers1, 100.0*data['time_saturation'])
+
+    def onXLabelChanged(self, label):
+        self.setLabel('bottom', label)
+
+class DiagnosticPlot2(TimedPlotWidgetF):
+    """DiagnosticPlot2 class.
+
+    Visualize 1D binning diagnostic data as function of time.
+    """
+    def __init__(self, *, parent=None):
+        """Initialization."""
+        super().__init__(parent=parent)
+
+        self.setTitle("Diagnostic2")
+        self.setLabel('left', "roi3")
+        self.setLabel('right', "Saturation (%)")
+        self.addLegend(offset=(-40, 20))
+
+        self._time_r3 = self.plotScatter(name="ROI3", pen=FColor.mkPen("b"))
+        self._time_saturation = self.plotScatter(
+            name="Saturation", y2=True, pen=FColor.mkPen("r"))
+
+    def refresh(self):
+        """Override."""
+        data = self._data
+
+        x, y = data['time_r3']
+        self._time_r3.setData(x, y.avg)
+
+        x, y = data['time_saturation']
+        self._time_saturation.setData(x, 100.0*y.avg)
 
     def onXLabelChanged(self, label):
         self.setLabel('bottom', label)
@@ -281,6 +307,7 @@ class TrXasWindow(_SpecialAnalysisBase):
         self._t13_t23 = TrXasSpectraPlot(parent=self)
         self._t21 = TrXasSpectraPlot(True, parent=self)
         self._diagnostic = DiagnosticPlot(parent=self)
+        self._diagnostic2 = DiagnosticPlot2(parent=self)
         self._a21_heatmap = TrXasHeatmap(parent=self)
 
         self.initUI()
@@ -298,11 +325,16 @@ class TrXasWindow(_SpecialAnalysisBase):
 
         panel2 = QSplitter(Qt.Horizontal)
         panel2.addWidget(self._diagnostic)
-        panel2.addWidget(self._a21_heatmap)
+        panel2.addWidget(self._diagnostic2)
         panel2.setSizes([W/2.0, W/2.0])
 
+        panel3 = QSplitter(Qt.Horizontal)
+        panel3.addWidget(self._roi1_image)
+        panel3.addWidget(self._a21_heatmap)
+        panel3.setSizes([W/2.0, W/2.0])
+
         main_panel = QSplitter(Qt.Vertical)
-        main_panel.addWidget(self._roi1_image)
+        main_panel.addWidget(panel3)
         main_panel.addWidget(panel1)
         main_panel.addWidget(panel2)
         main_panel.setSizes([1*H/7.0, 3*H/7.0, 3*H/7.0])
