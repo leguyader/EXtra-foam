@@ -219,7 +219,7 @@ class DiagnosticPlot(TimedPlotWidgetF):
         self._time_snr13.setData(centers1, data['time_snr13'])
         self._time_snr23.setData(centers1, data['time_snr23'])
         self._time_snr21.setData(centers1, data['time_snr21'])
-        self._time_saturation.setData(centers1, data['time_saturation'])
+        self._time_saturation.setData(centers1, 100.0*data['time_saturation'])
 
     def onXLabelChanged(self, label):
         self.setLabel('bottom', label)

@@ -11,6 +11,7 @@ All rights reserved.
 import math
 
 import numpy as np
+from numpy import isfinite
 from scipy import stats
 
 from extra_foam.algorithms import (compute_spectrum_1d, nansum,
@@ -241,7 +242,22 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
 
         self.log.info(f"Train {processed.tid} processed")
 
-        return {
+        # clean up nan and inf
+        log13 = -np.log(self._t13_stats['wmu'])
+        log13[~isfinite(log13)] = 0
+        log23 = -np.log(self._t23_stats['wmu'])
+        log23[~isfinite(log23)] = 0
+        log21 = -np.log(self._t21_stats['wmu'])
+        log21[~isfinite(log21)] = 0
+
+        snr13 = self._t13_stats['wmu']/self._t13_stats['ws']
+        snr13[~isfinite(snr13)] = 0
+        snr23 = self._t23_stats['wmu']/self._t23_stats['ws']
+        snr23[~isfinite(snr23)] = 0
+        snr21 = self._t21_stats['wmu']/self._t21_stats['ws']
+        snr21[~isfinite(snr21)] = 0
+
+        ret = {
             "rois": np.hstack((roi1, roi2, roi3)),
             #"roi1": roi1,
             #"roi2": roi2,
@@ -249,12 +265,12 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             "centers1": self.edges2centers(self._edges1)[0],
             "counts1": self._counts1,
             "centers2": self.edges2centers(self._edges2)[0],
-            "log_wmu13": -np.log(self._t13_stats['wmu']),
-            "log_wmu23": -np.log(self._t23_stats['wmu']),
-            "log_wmu21": -np.log(self._t21_stats['wmu']),
-            "snr13": self._t13_stats['wmu']/self._t13_stats['ws'],
-            "snr23": self._t23_stats['wmu']/self._t23_stats['ws'],
-            "snr21": self._t21_stats['wmu']/self._t21_stats['ws'],
+            "log_wmu13": log13,
+            "log_wmu23": log23,
+            "log_wmu21": log21,
+            "snr13": snr13,
+            "snr23": snr23,
+            "snr21": snr21,
             "a21_heat": self._a21_heat,
             "a21_heat_count": self._a21_heat_count,
 
@@ -264,6 +280,9 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             "time_saturation": self._time_saturation_stats,
             "time_centers1": self.edges2centers(self._time_edges1)[0]
         }
+        
+        return ret
+
 
     def _update_data_point(self, processed, raw):
         roi = processed.roi
@@ -272,7 +291,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         N_pulses = processed.image.n_images
         kept_pulses = processed.pidx.kept_indices(N_pulses)
         N_kept_pulses = len(kept_pulses)
-        sat = N_kept_pulses/N_pulses
+        sat = 1.0 - N_kept_pulses/N_pulses
         tid = processed.tid
 
         # get three sum intensity over kept pulses over ROIs
@@ -354,7 +373,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._counts1 = self._t21_stats['counts']
  
     def _new_1d_time_binning(self):
-        self._time_saturation_stats = compute_spectrum_1d(
+        self._time_saturation_stats, _, _ = compute_spectrum_1d(
             self._tid.data(),
             self._saturation.data(),
             n_bins=self._time_n_bins1,
@@ -539,5 +558,13 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._a21_heat = None
         self._a21_heat_count = None
 
+        self._time_saturation_stats = None
+        self._time_t13_stats = None
+        self._time_t23_stats = None
+        self._time_t21_stats = None
+        self._time_edges1 = None
+        self._time_counts1 = None
+
         self._bin1d = True
         self._bin2d = True
+        self._time_bin1d = True
