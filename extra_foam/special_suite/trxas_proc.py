@@ -98,8 +98,10 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._tid = SimpleSequence(max_len=self._MAX_POINTS)
         self._saturation = SimpleSequence(max_len=self._MAX_POINTS)
 
-        self._time_saturation = OneWayAccuPairSequence(resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
-        self._time_r3 = OneWayAccuPairSequence(resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
+        self._time_saturation = OneWayAccuPairSequence(
+                resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
+        self._time_r3 = OneWayAccuPairSequence(
+                resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
 
         self._edges1 = None
         self._counts1 = None
@@ -198,13 +200,14 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         """Override."""
         processed = data["processed"]
 
-        roi1, roi2, roi3 = None, None, None
-        t13, t23, t21 = None, None, None
-        r1, r2, r3, s1, s2 = None, None, None, None, None
-        sat, tid = None, None
+        ret = {'roi1': None, 'roi2': None, 'roi3': None,
+                't13': None, 't23': None, 't21': None,
+                'r1': None, 'r2': None, 'r3': None,
+                's1': None, 's2': None,
+                'sat': None, 'tid': None}
+
         try:
-            roi1, roi2, roi3, t13, t23, t21, r1, r2, r3, s1, s2, sat, tid = \
-                self._update_data_point(processed, data['raw'])
+            ret = self._update_data_point(processed, data['raw'])
         except ProcessingError as e:
             self.log.error(repr(e))
 
@@ -219,8 +222,8 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._new_1d_binning()
             self._bin1d = False
         else:
-            if t21 is not None:
-                self._update_1d_binning(t13, t23, t21, r1, r2, r3, s1, sat, tid)
+            if ret['t21'] is not None:
+                self._update_1d_binning(ret)
 
         actual_range2 = self.get_actual_range(
             self._slow2.data(), self._bin_range2, self._auto_range2)
@@ -232,8 +235,8 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._new_2d_binning()
             self._bin2d = False
         else:
-            if t21 is not None:
-                self._update_2d_binning(t21, s1, s2)
+            if ret['t21'] is not None:
+                self._update_2d_binning(ret)
 
         time_actual_range1 = self.get_actual_range(
             self._tid.data(), self._time_bin_range1, self._time_auto_range1)
@@ -246,7 +249,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._new_1d_time_binning()
             self._time_bin1d = False
         else:
-            self._update_1d_time_binning(t13, t23, t21, r1, r2, r3, s1, sat, tid)
+            self._update_1d_time_binning(ret)
 
         self.log.info(f"Train {processed.tid} processed")
 
@@ -258,18 +261,15 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         log21 = -np.log(self._t21_stats['wmu'])
         log21[~isfinite(log21)] = 0
 
-        snr13 = self._t13_stats['wmu']/self._t13_stats['ws']
+        snr13 = 1.0/self._t13_stats['ws']
         snr13[~isfinite(snr13)] = 0
-        snr23 = self._t23_stats['wmu']/self._t23_stats['ws']
+        snr23 = 1.0/self._t23_stats['ws']
         snr23[~isfinite(snr23)] = 0
-        snr21 = self._t21_stats['wmu']/self._t21_stats['ws']
+        snr21 = 1.0/self._t21_stats['ws']
         snr21[~isfinite(snr21)] = 0
 
         ret = {
-            "rois": np.hstack((roi1, roi2, roi3)),
-            #"roi1": roi1,
-            #"roi2": roi2,
-            #"roi3": roi3,
+            "rois": np.hstack((ret['roi1'], ret['roi3'], ret['roi2'])),
             "centers1": self.edges2centers(self._edges1)[0],
             "counts1": self._counts1,
             "centers2": self.edges2centers(self._edges2)[0],
@@ -348,7 +348,11 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         s2 = self.getPropertyData(raw, self._device_id2, self._ppt2)
         self._slow2.append(s2)
 
-        return roi1, roi2, roi3, t13, t23, t21, r1, r2, r3, s1, s2, sat, tid
+        return {'roi1': roi1, 'roi2': roi2, 'roi3':roi3,
+                't13':t13, 't23':t23, 't21':t21,
+                'r1':r1, 'r2':r2, 'r3':r3,
+                's1':s1, 's2':s2,
+                'sat':sat, 'tid':tid}
 
     def _new_1d_binning(self):
         self._t13_stats = compute_spectrum_1d_weighted(
@@ -416,8 +420,9 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._time_edges1 = self._time_t21_stats['edges']
         self._time_counts1 = self._time_t21_stats['counts']
  
-    def _update_1d_binning(self, t13, t23, t21, r1, r2, r3, delay, sat, tid):
-        iloc_x = self.searchsorted(self._edges1, delay)
+    def _update_1d_binning(self, ret):
+        iloc_x = self.searchsorted(self._edges1, ret['s1'])
+        print(f'{iloc_x} in 0 to {self._n_bins1}')
         if 0 <= iloc_x < self._n_bins1:
             self._counts1[iloc_x] += 1
             """
@@ -428,7 +433,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             """
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                t13, r3, self._t13_stats['sum_w'][iloc_x],
+                ret['t13'], ret['r3'], self._t13_stats['sum_w'][iloc_x],
                 self._t13_stats['sum_w2'][iloc_x], 
                 self._t13_stats['wmu'][iloc_x],
                 self._t13_stats['t'][iloc_x])
@@ -440,7 +445,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._t13_stats['counts'][iloc_x] += 1
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                t23, r3, self._t23_stats['sum_w'][iloc_x],
+                ret['t23'], ret['r3'], self._t23_stats['sum_w'][iloc_x],
                 self._t23_stats['sum_w2'][iloc_x], 
                 self._t23_stats['wmu'][iloc_x],
                 self._t23_stats['t'][iloc_x])
@@ -452,7 +457,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._t23_stats['counts'][iloc_x] += 1
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                t21, r1, self._t21_stats['sum_w'][iloc_x],
+                ret['t21'], ret['r1'], self._t21_stats['sum_w'][iloc_x],
                 self._t21_stats['sum_w2'][iloc_x], 
                 self._t21_stats['wmu'][iloc_x],
                 self._t21_stats['t'][iloc_x])
@@ -463,14 +468,14 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._t21_stats['ws'][iloc_x] = ws
             self._t21_stats['counts'][iloc_x] += 1
 
-    def _update_1d_time_binning(self, t13, t23, t21, r1, r2, r3, delay, sat, tid):
-        iloc_x = self.searchsorted(self._time_edges1, tid)
+    def _update_1d_time_binning(self, ret):
+        iloc_x = self.searchsorted(self._time_edges1, ret['tid'])
         if 0 <= iloc_x < self._time_n_bins1:
             self._time_counts1[iloc_x] += 1
             count = self._time_counts1[iloc_x]
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                t13, r3, self._time_t13_stats['sum_w'][iloc_x],
+                ret['t13'], ret['r3'], self._time_t13_stats['sum_w'][iloc_x],
                 self._time_t13_stats['sum_w2'][iloc_x], 
                 self._time_t13_stats['wmu'][iloc_x],
                 self._time_t13_stats['t'][iloc_x])
@@ -482,7 +487,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._time_t13_stats['counts'][iloc_x] += 1
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                t23, r3, self._time_t23_stats['sum_w'][iloc_x],
+                ret['t23'], ret['r3'], self._time_t23_stats['sum_w'][iloc_x],
                 self._time_t23_stats['sum_w2'][iloc_x], 
                 self._time_t23_stats['wmu'][iloc_x],
                 self._time_t23_stats['t'][iloc_x])
@@ -494,7 +499,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._time_t23_stats['counts'][iloc_x] += 1
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                t21, r1, self._time_t21_stats['sum_w'][iloc_x],
+                ret['t21'], ret['r1'], self._time_t21_stats['sum_w'][iloc_x],
                 self._time_t21_stats['sum_w2'][iloc_x], 
                 self._time_t21_stats['wmu'][iloc_x],
                 self._time_t21_stats['t'][iloc_x])
@@ -527,14 +532,14 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
                                       [self._actual_range1, self._actual_range2])
         np.nan_to_num(self._a21_heat_count, copy=False)
 
-    def _update_2d_binning(self, t21, energy, delay):
-        iloc_x = self.searchsorted(self._edges2, energy)
-        iloc_y = self.searchsorted(self._edges1, delay)
+    def _update_2d_binning(self, ret):
+        iloc_x = self.searchsorted(self._edges2, ret['s1'])
+        iloc_y = self.searchsorted(self._edges1, ret['s2'])
         if 0 <= iloc_x < self._n_bins2 \
                 and 0 <= iloc_y < self._n_bins1:
             self._a21_heat_count[iloc_y, iloc_x] += 1
             self._a21_heat[iloc_y, iloc_x] += \
-                (-np.log(t21) - self._a21_heat[iloc_y, iloc_x]) / \
+                (-np.log(ret['t21']) - self._a21_heat[iloc_y, iloc_x]) / \
                 self._a21_heat_count[iloc_y, iloc_x]
 
     def reset(self):

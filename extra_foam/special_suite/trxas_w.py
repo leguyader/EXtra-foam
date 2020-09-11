@@ -40,21 +40,18 @@ class TrXasCtrlWidget(_BaseAnalysisCtrlWidgetS):
         super().__init__(*args, **kwargs)
 
         self.device_id1_le = SmartStringLineEdit(
-        #    "SCS_ILH_LAS/MOTOR/LT3")
             "SA3_XTD10_MONO/MDL/PHOTON_ENERGY")
         self.ppt1_le = SmartStringLineEdit(
-        #    "AActualPosition")
             "actualEnergy")
         self.label1_le = SmartStringLineEdit(
-        #    "Delay (arb. u.)")
             "Energy (eV)")
 
         self.device_id2_le = SmartStringLineEdit(
-            "SA3_XTD10_MONO/MDL/PHOTON_ENERGY")
+            "SCS_ILH_LAS/MOTOR/LT3")
         self.ppt2_le = SmartStringLineEdit(
-            "actualEnergy")
+            "actualPosition")
         self.label2_le = SmartStringLineEdit(
-            "Energy (eV)")
+            "Delay (mm)")
 
         self.bin_range1_le = SmartBoundaryLineEdit(_DEFAULT_BIN_RANGE)
         self.n_bins1_le = SmartLineEdit(str(_DEFAULT_N_BINS))
