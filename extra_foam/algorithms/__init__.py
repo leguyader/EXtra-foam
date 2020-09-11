@@ -19,7 +19,8 @@ from .miscellaneous import (
 from .sampling import down_sample, slice_curve, up_sample
 from .data_structures import (
     OrderedSet, Stack, SimpleSequence, SimpleVectorSequence,
-    SimplePairSequence, OneWayAccuPairSequence,
+    SimplePairSequence, SimpleWeightedPairSequence,
+    OneWayAccuPairSequence, OneWayAccuWeightedPairSequence
 )
 from .azimuthal_integ import (
     compute_q, energy2wavelength, AzimuthalIntegrator, ConcentricRingsFinder,
