@@ -205,13 +205,12 @@ class DiagnosticPlot(TimedPlotWidgetF):
         """Override."""
         data = self._data
 
-        centers1 = data["time_centers1"]
-        if centers1 is None:
-            return
-
-        self._time_snr13.setData(centers1, data['time_snr13'])
-        self._time_snr23.setData(centers1, data['time_snr23'])
-        self._time_snr21.setData(centers1, data['time_snr21'])
+        x, y = data['time_t13']
+        self._time_snr13.setData(x, 1.0/y.wmu)
+        x, y = data['time_t23']
+        self._time_snr23.setData(x, 1.0/y.wmu)
+        x, y = data['time_t21']
+        self._time_snr21.setData(x, 1.0/y.wmu)
 
     def onXLabelChanged(self, label):
         self.setLabel('bottom', label)

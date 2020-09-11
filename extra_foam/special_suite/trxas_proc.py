@@ -17,7 +17,8 @@ from scipy import stats
 from extra_foam.algorithms import (compute_spectrum_1d, nansum,
     compute_spectrum_1d_weighted, weighted_incremental_std)
 
-from extra_foam.algorithms import SimpleSequence, OneWayAccuPairSequence
+from extra_foam.algorithms import (SimpleSequence, OneWayAccuPairSequence,
+        OneWayWeightedAccuPairSequence)
 from extra_foam.pipeline.processors.binning import _BinMixin
 from extra_foam.pipeline.exceptions import ProcessingError
 
@@ -98,6 +99,12 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._tid = SimpleSequence(max_len=self._MAX_POINTS)
         self._saturation = SimpleSequence(max_len=self._MAX_POINTS)
 
+        self._time_t13 = OneWayAccuWeightedPairSequence(
+                resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
+        self._time_t23 = OneWayAccuWeightedPairSequence(
+                resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
+        self._time_t21 = OneWayAccuWeightedPairSequence(
+                resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
         self._time_saturation = OneWayAccuPairSequence(
                 resolution=_DEFAULT_N_BINS, max_len=self._MAX_POINTS)
         self._time_r3 = OneWayAccuPairSequence(
@@ -108,12 +115,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._t13_stats = None
         self._t23_stats = None
         self._t21_stats = None
-
-        self._time_edges1 = None
-        self._time_counts1 = None
-        self._time_t13_stats = None
-        self._time_t23_stats = None
-        self._time_t21_stats = None
 
         self._edges2 = None
         self._a21_heat = None
@@ -181,6 +182,15 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         if w != self._time_bin_width1:
             self._time_bin_width1 = w
             self._time_bin1d = True
+            self._time_t13 = OneWayAccuPairSequence.from_array(
+                    self._tid.data(), self._t13.data(), self._r3.data(),
+                    resolution=w, max_len=self._MAX_POINTS)
+            self._time_t23 = OneWayAccuPairSequence.from_array(
+                    self._tid.data(), self._t23.data(), self._r3.data(),
+                    resolution=w, max_len=self._MAX_POINTS)
+            self._time_t21 = OneWayAccuPairSequence.from_array(
+                    self._tid.data(), self._t21.data(), self._r1.data(),
+                    resolution=w, max_len=self._MAX_POINTS)
             self._time_r3 = OneWayAccuPairSequence.from_array(
                     self._tid.data(), self._r3.data(), resolution=w,
                     max_len=self._MAX_POINTS)
@@ -282,11 +292,10 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             "a21_heat": self._a21_heat,
             "a21_heat_count": self._a21_heat_count,
 
-            "time_snr13": self._time_t13_stats['wmu']/self._time_t13_stats['ws'],
-            "time_snr23": self._time_t23_stats['wmu']/self._time_t23_stats['ws'],
-            "time_snr21": self._time_t21_stats['wmu']/self._time_t21_stats['ws'],
+            "time_t13": self._time_t13.data(),
+            "time_t23": self._time_t23.data(),
+            "time_t21": self._time_t21.data(),
             "time_saturation": self._time_saturation.data(),
-            "time_centers1": self.edges2centers(self._time_edges1)[0],
             "time_r3": self._time_r3.data()
         }
         
@@ -339,6 +348,10 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._t21.append(t21)
         self._tid.append(tid)
         self._saturation.append(sat)
+
+        self._time_t13.append((tid, t13, r3))
+        self._time_t23.append((tid, t23, r3))
+        self._time_t21.append((tid, t21, r1))
         self._time_saturation.append((tid,sat))
         self._time_r3.append((tid,r3))
 
@@ -387,39 +400,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._edges1 = self._t21_stats['edges']
         self._counts1 = self._t21_stats['counts']
  
-    def _new_1d_time_binning(self):
-        self._time_t13_stats = compute_spectrum_1d_weighted(
-            self._tid.data(),
-            self._t13.data(),
-            self._r3.data(),
-            n_bins=self._time_n_bins1,
-            bin_range=self._time_actual_range1,
-            edge2center=False,
-            nan_to_num=True
-        )
-
-        self._time_t23_stats = compute_spectrum_1d_weighted(
-            self._tid.data(),
-            self._t23.data(),
-            self._r3.data(),
-            n_bins=self._time_n_bins1,
-            bin_range=self._time_actual_range1,
-            edge2center=False,
-            nan_to_num=True
-        )
-
-        self._time_t21_stats = compute_spectrum_1d_weighted(
-            self._tid.data(),
-            self._t21.data(),
-            self._r1.data(),
-            n_bins=self._time_n_bins1,
-            bin_range=self._time_actual_range1,
-            edge2center=False,
-            nan_to_num=True
-        )
-        self._time_edges1 = self._time_t21_stats['edges']
-        self._time_counts1 = self._time_t21_stats['counts']
- 
     def _update_1d_binning(self, ret):
         iloc_x = self.searchsorted(self._edges1, ret['s1'])
         print(f'{iloc_x} in 0 to {self._n_bins1}')
@@ -467,48 +447,6 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._t21_stats['t'][iloc_x] = t
             self._t21_stats['ws'][iloc_x] = ws
             self._t21_stats['counts'][iloc_x] += 1
-
-    def _update_1d_time_binning(self, ret):
-        iloc_x = self.searchsorted(self._time_edges1, ret['tid'])
-        if 0 <= iloc_x < self._time_n_bins1:
-            self._time_counts1[iloc_x] += 1
-            count = self._time_counts1[iloc_x]
-
-            sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                ret['t13'], ret['r3'], self._time_t13_stats['sum_w'][iloc_x],
-                self._time_t13_stats['sum_w2'][iloc_x], 
-                self._time_t13_stats['wmu'][iloc_x],
-                self._time_t13_stats['t'][iloc_x])
-            self._time_t13_stats['sum_w'][iloc_x] = sum_w
-            self._time_t13_stats['sum_w'][iloc_x] = sum_w2
-            self._time_t13_stats['wmu'][iloc_x] = wmu
-            self._time_t13_stats['t'][iloc_x] = t
-            self._time_t13_stats['ws'][iloc_x] = ws
-            self._time_t13_stats['counts'][iloc_x] += 1
-
-            sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                ret['t23'], ret['r3'], self._time_t23_stats['sum_w'][iloc_x],
-                self._time_t23_stats['sum_w2'][iloc_x], 
-                self._time_t23_stats['wmu'][iloc_x],
-                self._time_t23_stats['t'][iloc_x])
-            self._time_t23_stats['sum_w'][iloc_x] = sum_w
-            self._time_t23_stats['sum_w'][iloc_x] = sum_w2
-            self._time_t23_stats['wmu'][iloc_x] = wmu
-            self._time_t23_stats['t'][iloc_x] = t
-            self._time_t23_stats['ws'][iloc_x] = ws
-            self._time_t23_stats['counts'][iloc_x] += 1
-
-            sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
-                ret['t21'], ret['r1'], self._time_t21_stats['sum_w'][iloc_x],
-                self._time_t21_stats['sum_w2'][iloc_x], 
-                self._time_t21_stats['wmu'][iloc_x],
-                self._time_t21_stats['t'][iloc_x])
-            self._time_t21_stats['sum_w'][iloc_x] = sum_w
-            self._time_t21_stats['sum_w'][iloc_x] = sum_w2
-            self._time_t21_stats['wmu'][iloc_x] = wmu
-            self._time_t21_stats['t'][iloc_x] = t
-            self._time_t21_stats['ws'][iloc_x] = ws
-            self._time_t21_stats['counts'][iloc_x] += 1
 
     def _new_2d_binning(self):
         # to have energy on x axis and delay on y axis
@@ -564,15 +502,11 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._a21_heat = None
         self._a21_heat_count = None
 
-        self._time_t13_stats = None
-        self._time_t23_stats = None
-        self._time_t21_stats = None
-        self._time_edges1 = None
-        self._time_counts1 = None
-
         self._bin1d = True
         self._bin2d = True
         self._time_bin1d = True
 
-        self._time_r3.reset()
+        self._time_t13.reset()
+        self._time_t23.reset()
+        self._time_t21.reset()
         self._time_saturation.reset()
