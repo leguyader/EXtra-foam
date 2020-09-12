@@ -18,7 +18,7 @@ from extra_foam.algorithms import (compute_spectrum_1d, nansum,
     compute_spectrum_1d_weighted, weighted_incremental_std)
 
 from extra_foam.algorithms import (SimpleSequence, OneWayAccuPairSequence,
-        OneWayWeightedAccuPairSequence)
+    OneWayAccuWeightedPairSequence)
 from extra_foam.pipeline.processors.binning import _BinMixin
 from extra_foam.pipeline.exceptions import ProcessingError
 
@@ -247,7 +247,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         else:
             if ret['t21'] is not None:
                 self._update_2d_binning(ret)
-
+        """
         time_actual_range1 = self.get_actual_range(
             self._tid.data(), self._time_bin_range1, self._time_auto_range1)
         if time_actual_range1 != self._time_actual_range1:
@@ -260,6 +260,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
             self._time_bin1d = False
         else:
             self._update_1d_time_binning(ret)
+        """
 
         self.log.info(f"Train {processed.tid} processed")
 
@@ -402,15 +403,8 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
  
     def _update_1d_binning(self, ret):
         iloc_x = self.searchsorted(self._edges1, ret['s1'])
-        print(f'{iloc_x} in 0 to {self._n_bins1}')
         if 0 <= iloc_x < self._n_bins1:
             self._counts1[iloc_x] += 1
-            """
-            count = self._counts1[iloc_x]
-            self._a13_stats[iloc_x] += (a13 - self._a13_stats[iloc_x]) / count
-            self._a23_stats[iloc_x] += (a23 - self._a23_stats[iloc_x]) / count
-            self._a21_stats[iloc_x] += (a21 - self._a21_stats[iloc_x]) / count
-            """
 
             sum_w, sum_w2, wmu, t, ws = weighted_incremental_std(
                 ret['t13'], ret['r3'], self._t13_stats['sum_w'][iloc_x],
@@ -418,7 +412,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
                 self._t13_stats['wmu'][iloc_x],
                 self._t13_stats['t'][iloc_x])
             self._t13_stats['sum_w'][iloc_x] = sum_w
-            self._t13_stats['sum_w'][iloc_x] = sum_w2
+            self._t13_stats['sum_w2'][iloc_x] = sum_w2
             self._t13_stats['wmu'][iloc_x] = wmu
             self._t13_stats['t'][iloc_x] = t
             self._t13_stats['ws'][iloc_x] = ws
@@ -430,7 +424,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
                 self._t23_stats['wmu'][iloc_x],
                 self._t23_stats['t'][iloc_x])
             self._t23_stats['sum_w'][iloc_x] = sum_w
-            self._t23_stats['sum_w'][iloc_x] = sum_w2
+            self._t23_stats['sum_w2'][iloc_x] = sum_w2
             self._t23_stats['wmu'][iloc_x] = wmu
             self._t23_stats['t'][iloc_x] = t
             self._t23_stats['ws'][iloc_x] = ws
@@ -442,7 +436,7 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
                 self._t21_stats['wmu'][iloc_x],
                 self._t21_stats['t'][iloc_x])
             self._t21_stats['sum_w'][iloc_x] = sum_w
-            self._t21_stats['sum_w'][iloc_x] = sum_w2
+            self._t21_stats['sum_w2'][iloc_x] = sum_w2
             self._t21_stats['wmu'][iloc_x] = wmu
             self._t21_stats['t'][iloc_x] = t
             self._t21_stats['ws'][iloc_x] = ws
@@ -509,4 +503,5 @@ class TrXasProcessor(QThreadWorker, _BinMixin):
         self._time_t13.reset()
         self._time_t23.reset()
         self._time_t21.reset()
+        self._time_r3.reset()
         self._time_saturation.reset()

@@ -608,7 +608,6 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
             if abs(x - self._x_avg[last]) <= self._resolution:
                 self._count[last] += 1
                 self._x_avg[last] += (x - self._x_avg[last]) / self._count[last]
-                avg_prev = self._y_avg[last]
                 sumw, sumw2, wmu, T, ws = weighted_incremental_std(
                         y, w,
                         self._sumw[last],
@@ -620,9 +619,9 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
                 self._sumw2[last] = sumw2
                 self._wmu[last] = wmu
                 self._T[last] = T
-                self._ws[last] = ws
-                self._y_min[last] = min(self._y_avg[last], y)
-                self._y_max[last] = max(self._y_avg[last], y)
+                self._wsigma[last] = ws
+                self._y_min[last] = min(self._y_min[last], y)
+                self._y_max[last] = max(self._y_max[last], y)
 
                 if self._count[last] == self._min_count:
                     new_pt = True
@@ -640,7 +639,7 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
                 self._sumw2[last] = w*w
                 self._wmu[last] = y
                 self._T[last] = 0.0
-                self._ws[last] = 0.0
+                self._wsigma[last] = 0.0
                 self._y_min[last] = y
                 self._y_max[last] = y
 
@@ -651,7 +650,7 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
             self._sumw2[0] = w*w
             self._wmu[0] = y
             self._T[0] = 0.0
-            self._ws[0] = 0.0
+            self._wsigma[0] = 0.0
             self._y_min[0] = y
             self._y_max[0] = y
 
@@ -670,7 +669,7 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
                     self._sumw2[:max_len] = self._sumw2[max_len:]
                     self._wmu[:max_len] = self._wmu[max_len:]
                     self._T[:max_len] = self._T[max_len:]
-                    self._ws[:max_len] = self._ws[max_len:]
+                    self._wsigma[:max_len] = self._wsigma[max_len:]
                     self._y_min[:max_len] = self._y_min[max_len:]
                     self._y_max[:max_len] = self._y_max[max_len:]
 
@@ -701,7 +700,7 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
         self._sumw2.fill(0)
         self._wmu.fill(0)
         self._T.fill(0)
-        self._ws.fill(0)
+        self._wsigma.fill(0)
         self._y_min.fill(0)
         self._y_max.fill(0)
 
@@ -709,7 +708,7 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
     def from_array(cls, ax, ay, aw, *args, **kwargs):
         if (len(ax) != len(ay)) or (len(ax) != len(aw)):
             raise ValueError(f"ax, ay and aw must have the same length. "
-                             f"Actual: {len(ax)}, {len(ay)}, {len(aw}")
+                             f"Actual: {len(ax)}, {len(ay)}, {len(aw)}")
 
         instance = cls(*args, **kwargs)
         for x, y in zip(ax, ay, aw):
