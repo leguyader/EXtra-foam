@@ -711,6 +711,6 @@ class OneWayAccuWeightedPairSequence(_AbstractSequence):
                              f"Actual: {len(ax)}, {len(ay)}, {len(aw)}")
 
         instance = cls(*args, **kwargs)
-        for x, y in zip(ax, ay, aw):
+        for x, y, w in zip(ax, ay, aw):
             instance.append((x, y, w))
         return instance

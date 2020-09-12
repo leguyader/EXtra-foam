@@ -206,11 +206,11 @@ class DiagnosticPlot(TimedPlotWidgetF):
         data = self._data
 
         x, y = data['time_t13']
-        self._time_snr13.setData(x, 1.0/y.wmu)
+        self._time_snr13.setData(x, 1.0/y.wsigma)
         x, y = data['time_t23']
-        self._time_snr23.setData(x, 1.0/y.wmu)
+        self._time_snr23.setData(x, 1.0/y.wsigma)
         x, y = data['time_t21']
-        self._time_snr21.setData(x, 1.0/y.wmu)
+        self._time_snr21.setData(x, 1.0/y.wsigma)
 
     def onXLabelChanged(self, label):
         self.setLabel('bottom', label)
