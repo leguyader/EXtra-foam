@@ -35,7 +35,7 @@ class GotthardPpProcessor(QThreadWorker):
         super().__init__(*args, **kwargs)
 
         self._output_channel = ""
-        self._ppt = "data.adc"
+        self._output_channel_ppt = ""
 
         self._on_slicer = slice(None, None)
         self._off_slicer = slice(None, None)
@@ -48,6 +48,9 @@ class GotthardPpProcessor(QThreadWorker):
 
     def onOutputChannelChanged(self, ch: str):
         self._output_channel = ch
+
+    def onOutputChannelPptChanged(self, ppt: str):
+        self._output_channel_ppt = ppt
 
     def onMaWindowChanged(self, value: str):
         self.__class__._vfom_ma.window = int(value)
@@ -70,7 +73,7 @@ class GotthardPpProcessor(QThreadWorker):
     def sources(self):
         """Override."""
         return [
-            (self._output_channel, self._ppt, 1),
+            (self._output_channel, self._output_channel_ppt, 1),
         ]
 
     @profiler("Gotthard Processor (pump-probe)")
@@ -79,7 +82,8 @@ class GotthardPpProcessor(QThreadWorker):
         data, meta = data["raw"], data["meta"]
         tid = self.getTrainId(meta)
 
-        raw = self.getPropertyData(data, self._output_channel, self._ppt)
+        raw = self.getPropertyData(data, self._output_channel,
+                                 self._output_channel_ppt)
 
         # check data shape
         if raw.ndim != 2:

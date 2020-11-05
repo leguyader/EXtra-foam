@@ -36,6 +36,8 @@ class GotthardPpCtrlWidget(_BaseAnalysisCtrlWidgetS):
         self.output_ch_le = SmartStringLineEdit(
             GOTTHARD_DEVICE.get(self.topic, "Gotthard:output"))
 
+        self.output_ch_ppt_le = SmartLineEdit("data.adc")
+
         self.ma_window_le = SmartLineEdit("1")
         validator = QIntValidator()
         validator.setBottom(1)
@@ -65,6 +67,7 @@ class GotthardPpCtrlWidget(_BaseAnalysisCtrlWidgetS):
         layout = self.layout()
 
         layout.addRow("Output channel: ", self.output_ch_le)
+        layout.addRow("Output channel ppt: ", self.output_ch_ppt_le)
         layout.addRow("M.A. window: ", self.ma_window_le)
         layout.addRow("On-pulse slicer: ", self.on_slicer_le)
         layout.addRow("Off-pulse slicer: ", self.off_slicer_le)
@@ -277,6 +280,10 @@ class GotthardPumpProbeWindow(_SpecialAnalysisBase):
         self._ctrl_widget_st.output_ch_le.value_changed_sgn.connect(
             self._worker_st.onOutputChannelChanged)
         self._ctrl_widget_st.output_ch_le.returnPressed.emit()
+
+        self._ctrl_widget_st.output_ch_ppt_le.value_changed_sgn.connect(
+            self._worker_st.onOutputChannelPptChanged)
+        self._ctrl_widget_st.output_ch_ppt_le.returnPressed.emit()
 
         self._ctrl_widget_st.on_slicer_le.value_changed_sgn.connect(
             self._worker_st.onOnSlicerChanged)
