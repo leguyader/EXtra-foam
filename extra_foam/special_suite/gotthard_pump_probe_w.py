@@ -191,8 +191,10 @@ class GotthardPpDarkPulsePlot(PlotWidgetF):
         self._updateTitle()
         self.setLabel('left', "ADU")
         self.setLabel('bottom', "Pixel")
+        self.addLegend(offset=(10, 5))
 
-        self._plot = self.plotCurve(pen=FColor.mkPen("k"))
+        self._plot = self.plotCurve(name="dark", pen=FColor.mkPen("k"))
+        self._diff = self.plotCurve(name="On - Off", pen=FColor.mkPen("g"))
 
     def _updateTitle(self):
         self.setTitle(f"Pulse of interest (dark): {self._idx}")
@@ -208,6 +210,9 @@ class GotthardPpDarkPulsePlot(PlotWidgetF):
         x = np.arange(len(y))
         self._plot.setData(x, y)
 
+        on = data['raw'][data['on_slicer']][idx]
+        off = data['raw'][data['off_slicer']][idx]
+        self._diff.setData(x, on-off)
 
 class GotthardPpImageView(ImageViewF):
     """GotthardPpImageView class.
